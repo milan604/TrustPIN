@@ -1,4 +1,4 @@
-module trustPIN
+module github.com/milan604/trustPIN
 
 go 1.23
 
