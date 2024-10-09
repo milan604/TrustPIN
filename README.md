@@ -20,3 +20,4 @@ To install TrustPIN, run the following command:
 
 ```bash
 go install github.com/yourusername/trustPIN@latest
+
