@@ -25,6 +25,11 @@ func showAllAccounts() {
 		return
 	}
 
+	if len(accounts) == 0 {
+		fmt.Println("No accounts to show. Please add an account first.")
+		return
+	}
+
 	longestAccountName := 0
 	for _, account := range accounts {
 		if len(account.Name) > longestAccountName {
@@ -139,4 +144,48 @@ func addNewAccount(account, secret string, interval, digits int) {
 	}
 	fmt.Println(account)
 	fmt.Println("Account added successfully!")
+}
+
+func deleteAccountByName(account string) {
+	accounts, err := loadAccounts()
+	if err != nil {
+		fmt.Println("Error loading accounts:", err)
+		return
+	}
+
+	if len(accounts) == 0 {
+		fmt.Println("No accounts to delete")
+		return
+	}
+
+	if account == "" {
+		fmt.Println("Please provide an account name to delete or use 'delete all' to delete all accounts")
+		return
+	}
+
+	if account == "all" {
+		err = os.Remove(accountFile)
+		if err != nil {
+			fmt.Println("Error deleting accounts:", err)
+			return
+		}
+
+		fmt.Println("All accounts deleted successfully!")
+		return
+	}
+
+	for i, acc := range accounts {
+		if acc.Name == account {
+			accounts = append(accounts[:i], accounts[i+1:]...)
+			break
+		}
+	}
+
+	err = saveAccounts(accounts)
+	if err != nil {
+		fmt.Println("Error saving accounts:", err)
+		return
+	}
+
+	fmt.Println("Account deleted successfully!")
 }

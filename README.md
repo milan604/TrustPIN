@@ -20,4 +20,33 @@ To install TrustPIN, run the following command:
 
 ```bash
 go install github.com/milan604/trustPIN@latest
+```
+
+## Usage
+
+To add new accounts, run following command:
+
+```bash
+trustPIN add google <secret>
+```
+
+able to change pin rotate interval and change number of pin digits
+
+```bash 
+trustPIN add github <secret> -i 60 -d 4
+```
+
+To show all or specific accounts, run following command:
+
+```bash
+trustPIN show
+trustPIN show google
+```
+
+To delete specific or all accounts, run following command:
+
+```bash
+trustPIN delete google github
+trustPIN delete all
+```
 

@@ -27,6 +27,13 @@ var (
 		Long:  "Display all or a specific TOTP account and its current OTP.",
 		Run:   showAccounts,
 	}
+
+	deleteCmd = &cobra.Command{
+		Use:   "delete [account]",
+		Short: "Delete one/many TOTP account",
+		Long:  "Delete one or many TOTP account by providing the account name",
+		Run:   deleteAccounts,
+	}
 )
 
 func init() {
@@ -34,6 +41,7 @@ func init() {
 	addCmd.Flags().IntP("digits", "d", defaultDigits, "Number of digits for the TOTP code")
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(showCmd)
+	rootCmd.AddCommand(deleteCmd)
 }
 
 func addAccount(cmd *cobra.Command, args []string) {
@@ -58,6 +66,12 @@ func addAccount(cmd *cobra.Command, args []string) {
 
 func showAccounts(cmd *cobra.Command, args []string) {
 	showAllAccounts()
+}
+
+func deleteAccounts(cmd *cobra.Command, args []string) {
+	for _, account := range args {
+		deleteAccountByName(account)
+	}
 }
 
 func validateInput(account, secret string) error {
