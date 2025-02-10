@@ -19,5 +19,5 @@ TrustPIN is a command-line tool for managing time-based one-time passwords (TOTP
 To install TrustPIN, run the following command:
 
 ```bash
-go install github.com/yourusername/trustPIN@latest
+go install github.com/milan604/trustPIN@latest
 
