@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -39,12 +41,44 @@ var (
 func init() {
 	addCmd.Flags().IntP("interval", "i", defaultInterval, "Interval in seconds for the TOTP code")
 	addCmd.Flags().IntP("digits", "d", defaultDigits, "Number of digits for the TOTP code")
+	addCmd.Flags().StringP("qr-file", "q", "", "Path to a QR image file containing an otpauth:// URI to add the account from")
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(deleteCmd)
 }
 
 func addAccount(cmd *cobra.Command, args []string) {
+	qrFile, _ := cmd.Flags().GetString("qr-file")
+
+	if qrFile != "" {
+		uri, err := readQRFromFile(qrFile)
+		if err != nil {
+			fmt.Println("Error reading QR file:", err)
+			return
+		}
+
+		accounts, err := parseQRPayload(uri)
+		if err != nil {
+			fmt.Println("Error parsing QR payload:", err)
+			return
+		}
+
+		for _, a := range accounts {
+			if err := validateDigits(a.Digits); err != nil {
+				fmt.Printf("Skipping account %s: %v\n", a.Name, err)
+				continue
+			}
+			addNewAccount(a.Name, a.Secret, int(a.Interval), a.Digits)
+		}
+
+		return
+	}
+
+	if len(args) < 2 {
+		fmt.Println("Error: account and secret are required unless --qr-file is provided")
+		return
+	}
+
 	account := args[0]
 	secret := args[1]
 
@@ -69,6 +103,20 @@ func showAccounts(cmd *cobra.Command, args []string) {
 }
 
 func deleteAccounts(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
+		// No args: ask for confirmation to delete all accounts
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Are you sure you want to delete ALL accounts? (y/N): ")
+		resp, _ := reader.ReadString('\n')
+		resp = strings.TrimSpace(strings.ToLower(resp))
+		if resp == "y" || resp == "yes" {
+			deleteAccountByName("all")
+		} else {
+			fmt.Println("Aborted: no accounts were deleted.")
+		}
+		return
+	}
+
 	for _, account := range args {
 		deleteAccountByName(account)
 	}
