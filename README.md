@@ -25,11 +25,30 @@ TrustPIN is a local-first TOTP workspace with both a live terminal dashboard and
 └── README.md
 ```
 
-## Requirements
+## Installation
 
-- Go 1.25+
+### Using `go install` (recommended)
 
-## Quick Start
+```bash
+go install github.com/milan604/trustPIN/cmd/trustpin@latest
+```
+
+### From Release Binary
+
+Download the pre-built binary for your platform from the [Releases](https://github.com/milan604/trustPIN/releases) page:
+
+```bash
+# macOS / Linux
+chmod +x trustpin
+mv trustpin /usr/local/bin/
+
+# Verify
+trustpin --help
+```
+
+### From Source
+
+Requires **Go 1.25+**.
 
 Build the CLI:
 
