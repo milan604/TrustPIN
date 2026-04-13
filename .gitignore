@@ -1,2 +1,9 @@
-accounts.json
-main
+/accounts.json
+/accounts.enc
+/accounts.key
+/trustPIN
+/trustpin
+/dist/
+/.claude/
+/.DS_Store
+/coverage.out

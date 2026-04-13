@@ -1,97 +1,187 @@
-able to change pin rotate interval and change number of pin digits
-
 # TrustPIN
 
-TrustPIN is a small command-line tool for managing Time-based One-Time Passwords (TOTP). It stores accounts in a local JSON file (`accounts.json`) and can generate current OTPs for each account.
+TrustPIN is a local-first TOTP workspace with both a live terminal dashboard and a browser dashboard. It stores accounts in an encrypted local store, supports QR imports, audits account health, and is structured like a conventional Go project so it is easier to build, review, and extend on GitHub.
 
-## Features
+## Highlights
 
-- Add accounts by specifying account name and secret.
-- Import accounts from a provisioning QR code image (supports both raw `otpauth://` URIs and Google Authenticator migration QR `otpauth-migration://offline?data=...`).
-- Avoid duplicate entries: adding an account will replace an existing account when the account name or the secret matches.
-- Show all accounts with color-coded OTPs and time-to-expiry.
-- Delete single accounts or delete all accounts (with confirmation).
+- Live terminal dashboard with filtering, sorting, compact mode, and focused account inspection.
+- Browser dashboard served locally at `trustpin.web.localhost` with JSON APIs for account management and QR imports.
+- Web dashboard actions for adding, editing, deleting, and auditing accounts without leaving the app.
+- OTP privacy mode that blurs codes by default and reveals them only on card hover, with a one-click toolbar toggle.
+- Health audit for invalid secrets, duplicate/shared secrets, risky OTP policies, and naming quality.
+- Interactive add flow plus QR import support for standard `otpauth://` and Google Authenticator migration payloads.
+- Conventional Go layout with `cmd/` and `internal/` packages instead of a flat repo.
+- Automatic first-run migration from legacy plaintext `accounts.json` into encrypted app-data storage.
+
+## Project Layout
+
+```text
+.
+├── cmd/trustpin/          # binary entrypoint
+├── internal/cli/          # Cobra commands + terminal dashboard rendering
+├── internal/trustpin/     # core account, OTP, QR import, and audit logic
+├── internal/webui/        # local HTTP server + embedded web dashboard
+├── Makefile               # common build/run/test targets
+└── README.md
+```
 
 ## Requirements
 
-- Go 1.16+
+- Go 1.25+
 
-All Go module dependencies are managed in `go.mod`; `go build` or `go install` will fetch them automatically.
+## Quick Start
 
-## Install
-
-Build and install locally:
+Build the CLI:
 
 ```bash
-cd /path/to/TrustPIN
-go install ./...
+make build
 ```
 
-Or build a binary:
+Run the terminal dashboard:
 
 ```bash
-go build -o trustPIN
+make run
+```
+
+Run tests:
+
+```bash
+make test
+```
+
+Launch the browser dashboard:
+
+```bash
+make serve
+```
+
+You can also use plain Go commands:
+
+```bash
+go run ./cmd/trustpin
+go build -o trustpin ./cmd/trustpin
+go test ./...
 ```
 
 ## Usage
 
-Add an account by name + secret:
+Open the live dashboard:
 
 ```bash
-trustPIN add MyAccount MYSECRETBASE32
+trustpin
 ```
 
-You can set the TOTP interval (seconds) and the number of digits:
+Render a one-shot dashboard snapshot:
 
 ```bash
-trustPIN add GitHub ABCDEF123456 -i 60 -d 4
+trustpin show --once
 ```
 
-Import from a QR image (common for provisioning QR codes):
+Search or sort the dashboard:
 
 ```bash
-trustPIN add --qr-file path/to/provisioning-qr.png
+trustpin show github --sort name
+trustpin show --issuer "AWS SSO" --compact
+```
+
+Inspect a single account:
+
+```bash
+trustpin inspect "AWS SSO:prod"
+trustpin inspect GitHub --once
+```
+
+Run an account audit:
+
+```bash
+trustpin health
+```
+
+Migrate a legacy plaintext store manually:
+
+```bash
+trustpin migrate
+trustpin migrate /path/to/accounts.json
+trustpin migrate /path/to/accounts.json --keep-source
+```
+
+Start the web dashboard:
+
+```bash
+trustpin serve
+trustpin serve --port 8090
+```
+
+By default TrustPIN binds to `127.0.0.1` and prints a package-friendly local URL such as `http://trustpin.web.localhost:8086`.
+In the web dashboard, use the pencil icon on any account card to edit its name, secret, interval, or digit policy. Leaving the secret blank during edit keeps the current secret unchanged.
+The toolbar privacy toggle controls whether OTP codes stay blurred by default or remain fully visible.
+
+Add an account directly:
+
+```bash
+trustpin add GitHub JBSWY3DPEHPK3PXP
+```
+
+Add an account with a custom interval or digit count:
+
+```bash
+trustpin add Example ABCDEF123456 -i 60 -d 8
+```
+
+Use the interactive add flow:
+
+```bash
+trustpin add
+trustpin add GitHub
+```
+
+Import accounts from a QR image:
+
+```bash
+trustpin add --qr-file ./provisioning-qr.png
 ```
 
 Supported QR payloads:
-- otpauth://totp/Issuer:Account?secret=BASE32&period=30&digits=6
-- otpauth-migration://offline?data=<base64 protobuf payload> (Google Authenticator export/migration)
 
-When importing a migration QR that contains multiple accounts, TrustPIN will add all accounts found. If an account with the same name or secret already exists, it will be replaced.
-
-Show current OTPs for all accounts:
-
-```bash
-trustPIN show
-```
+- `otpauth://totp/Issuer:Account?secret=BASE32&period=30&digits=6`
+- `otpauth-migration://offline?data=<base64 protobuf payload>`
 
 Delete accounts:
 
-- Delete specific accounts by name:
-
 ```bash
-trustPIN delete account1 account2
+trustpin delete GitHub
+trustpin delete account1 account2
+trustpin delete
+trustpin delete --force
 ```
 
-- Delete all accounts:
+Use a custom encrypted store path:
 
 ```bash
-trustPIN delete
+trustpin --accounts-file ./data/accounts.enc
 ```
-
-Running `trustPIN delete` with no arguments will prompt for confirmation before removing all accounts. You can also run `trustPIN delete all` which will delete all accounts immediately.
 
 ## Storage
 
-Accounts are stored in the working directory in a file named `accounts.json`. Back up this file if you need to migrate or preserve accounts.
+TrustPIN stores accounts in an encrypted store by default.
 
-## Notes
+- Default location:
+  macOS: `~/Library/Application Support/TrustPIN/accounts.enc`
+  Linux: `${XDG_CONFIG_HOME:-~/.config}/TrustPIN/accounts.enc`
+  Windows: `%AppData%/TrustPIN/accounts.enc`
+- A per-user encryption key is created automatically alongside the store on first run.
+- If a legacy plaintext `accounts.json` is found in the current working directory, TrustPIN migrates it automatically into encrypted storage.
+- If your old plaintext file lives somewhere else, run `trustpin migrate /path/to/accounts.json`.
+- Secrets may be Base32 or Base64.
+- Legacy plaintext files are still ignored by Git to avoid accidental commits during migration.
 
-- Secrets may be Base32 or Base64; the tool will attempt to decode either when generating OTPs.
-- When importing migration payloads, the migration protobuf encodes some fields as enums — the tool maps common enum values to actual digit lengths (e.g., enum values commonly used for 6/8 digits).
-- If you prefer interactive confirmation when importing multiple accounts, or a different deduplication policy (e.g. prefer matching by secret only), I can add those behaviors.
+## Maintainer Notes
+
+- `internal/trustpin` is the shared core used by both the CLI and web server.
+- `internal/cli` owns terminal rendering only.
+- `internal/webui` owns HTTP handlers and the embedded frontend only.
+- The repo ships a `Makefile` so common tasks stay consistent across contributors.
 
 ## License
 
 MIT
-

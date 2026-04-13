@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#030712">
+  <title>TrustPIN</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2306b6d4'/%3E%3Cstop offset='100%25' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Cpath d='M32 54s16-8 16-20V20l-16-6-16 6v14c0 12 16 20 16 20Z' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    /* ── Variables ── */
+    :root {
+      --bg-primary: #030712;
+      --bg-secondary: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-card-hover: rgba(30, 41, 59, 0.9);
+      --bg-input: rgba(30, 41, 59, 0.8);
+      --bg-overlay: rgba(0, 0, 0, 0.6);
+      --border: rgba(148, 163, 184, 0.12);
+      --border-hover: rgba(148, 163, 184, 0.25);
+      --border-focus: rgba(6, 182, 212, 0.5);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --accent: #06b6d4;
+      --accent-dim: rgba(6, 182, 212, 0.15);
+      --success: #10b981;
+      --success-dim: rgba(16, 185, 129, 0.15);
+      --warning: #f59e0b;
+      --warning-dim: rgba(245, 158, 11, 0.15);
+      --danger: #ef4444;
+      --danger-dim: rgba(239, 68, 68, 0.15);
+      --purple: #8b5cf6;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+      --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    }
+
+    @property --ring-angle {
+      syntax: '<angle>';
+      initial-value: 360deg;
+      inherits: false;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
+    input, select { font-family: inherit; }
+
+    /* ── Ambient Background ── */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -40%; left: -20%;
+      width: 80%; height: 80%;
+      background: radial-gradient(ellipse, rgba(6, 182, 212, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -30%; right: -20%;
+      width: 70%; height: 70%;
+      background: radial-gradient(ellipse, rgba(139, 92, 246, 0.04) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    #app { position: relative; z-index: 1; }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      gap: 16px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .header-logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+    }
+    .header-logo svg { width: 18px; height: 18px; }
+    .header-title {
+      font-size: 17px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--text-primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse-dot 2s ease-in-out infinite;
+      margin-right: 4px;
+    }
+
+    /* ── Search ── */
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 380px;
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      padding: 9px 12px 9px 38px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .search-kbd {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.04);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      pointer-events: none;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #0891b2);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.25);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+      transform: translateY(-1px);
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+    .btn-danger {
+      background: var(--danger-dim);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn svg { width: 15px; height: 15px; }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      flex-wrap: wrap;
+    }
+    .stat-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: var(--text-secondary);
+    }
+    .stat-chip .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .stat-chip--accent .dot { background: var(--accent); }
+    .stat-chip--success .dot { background: var(--success); }
+    .stat-chip--warning .dot { background: var(--warning); }
+    .stat-chip--danger .dot { background: var(--danger); }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 28px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .toolbar-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .toolbar-right { display: flex; align-items: center; gap: 8px; }
+    .privacy-toggle {
+      position: relative;
+      overflow: hidden;
+    }
+    .privacy-toggle::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(139, 92, 246, 0.12));
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .privacy-toggle:hover::before,
+    .privacy-toggle.active::before {
+      opacity: 1;
+    }
+    .privacy-toggle span,
+    .privacy-toggle svg {
+      position: relative;
+      z-index: 1;
+    }
+    .sort-select {
+      padding: 6px 28px 6px 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+    .sort-select:focus { border-color: var(--border-focus); }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 16px;
+      padding: 4px 28px 40px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .grid--single {
+      grid-template-columns: minmax(360px, 620px);
+      justify-content: center;
+    }
+    .grid--few {
+      grid-template-columns: repeat(auto-fill, minmax(360px, 560px));
+      justify-content: center;
+    }
+
+    /* ── Account Card ── */
+    .card {
+      position: relative;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      transition: all 0.25s ease;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    .card:hover::before { opacity: 1; }
+    .card--success { --card-accent: var(--success); }
+    .card--warning { --card-accent: var(--warning); }
+    .card--danger { --card-accent: var(--danger); }
+    .card--accent { --card-accent: var(--accent); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .issuer-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .issuer-badge svg { width: 12px; height: 12px; opacity: 0.6; }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+    }
+    .status--success .status-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .status--success { color: var(--success); }
+    .status--warning .status-dot { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+    .status--warning { color: var(--warning); }
+    .status--danger .status-dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+    .status--danger { color: var(--danger); }
+    .status--accent .status-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .status--accent { color: var(--accent); }
+
+    .card-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* ── OTP Code ── */
+    .otp-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+    }
+    .otp-code {
+      font-family: var(--font-mono);
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      line-height: 1;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: color 0.2s, filter 0.2s ease, opacity 0.2s ease;
+      white-space: nowrap;
+    }
+    body.privacy-mode .card .otp-code {
+      filter: blur(10px);
+      opacity: 0.72;
+      user-select: none;
+    }
+    body.privacy-mode .card:hover .otp-code,
+    body.privacy-mode .card:focus-within .otp-code {
+      filter: blur(0);
+      opacity: 1;
+    }
+    .otp-code:hover { color: var(--accent); }
+    .otp-code.flash { animation: otp-flash 0.4s ease; }
+    .copy-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px; height: 32px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.06); color: var(--accent); }
+    .copy-btn.copied { color: var(--success); }
+    .copy-btn svg { width: 16px; height: 16px; }
+
+    /* ── Timer Ring ── */
+    .timer-ring {
+      position: relative;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: conic-gradient(
+        var(--card-accent, var(--accent)) var(--ring-angle),
+        rgba(255,255,255,0.05) var(--ring-angle)
+      );
+      transition: --ring-angle 1s linear;
+    }
+    .timer-ring-inner {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .timer-text {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    /* ── Progress Bar ── */
+    .progress-track {
+      width: 100%;
+      height: 3px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--card-accent, var(--accent));
+      transition: width 1s linear;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-policy {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .card-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .card:hover .card-actions { opacity: 1; }
+    .action-btn {
+      width: 28px; height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .action-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+    .action-btn--edit:hover { background: var(--accent-dim); color: var(--accent); }
+    .action-btn--danger:hover { background: var(--danger-dim); color: var(--danger); }
+    .action-btn svg { width: 14px; height: 14px; }
+
+    /* ── Empty State ── */
+    .empty-state {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px;
+      text-align: center;
+    }
+    .empty-icon {
+      width: 80px; height: 80px;
+      background: var(--accent-dim);
+      border-radius: 24px;
+      display: grid;
+      place-items: center;
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    .empty-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .empty-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      max-width: 400px;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-overlay);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-hover);
+      border-radius: var(--radius-lg);
+      width: 90%;
+      max-width: 460px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      transform: translateY(16px) scale(0.97);
+      transition: transform 0.25s ease;
+    }
+    .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 0;
+    }
+    .modal-title-wrap { min-width: 0; }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-meta {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      max-width: 320px;
+    }
+    .modal-close {
+      width: 32px; height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+    .modal-close svg { width: 18px; height: 18px; }
+    .modal-body { padding: 20px 24px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input::placeholder { color: var(--text-muted); }
+    .form-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .form-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 24px 20px;
+    }
+    .form-error {
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 4px;
+      display: none;
+    }
+    .form-error.show { display: block; }
+
+    /* ── Modal Tabs ── */
+    .modal-tabs {
+      display: flex;
+      gap: 0;
+      padding: 16px 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-tabs.hidden { display: none; }
+    .modal-tab {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      cursor: pointer;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+    .modal-tab:hover { color: var(--text-secondary); }
+    .modal-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Advanced Toggle ── */
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 8px 0 4px;
+      transition: color 0.2s;
+    }
+    .advanced-toggle:hover { color: var(--text-secondary); }
+    .advanced-toggle svg { width: 14px; height: 14px; transition: transform 0.2s; }
+    .advanced-toggle.open svg { transform: rotate(90deg); }
+    .advanced-content { display: none; padding-top: 8px; }
+    .advanced-content.open { display: block; }
+
+    /* ── QR Drop Zone ── */
+    .dropzone {
+      border: 2px dashed var(--border-hover);
+      border-radius: var(--radius-md);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      background: rgba(255,255,255,0.015);
+      position: relative;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .dropzone-icon {
+      width: 52px; height: 52px;
+      margin: 0 auto 12px;
+      background: var(--accent-dim);
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+    }
+    .dropzone-icon svg { width: 24px; height: 24px; color: var(--accent); }
+    .dropzone-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .dropzone-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .dropzone-preview {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-top: 12px;
+    }
+    .dropzone-preview.show { display: flex; }
+    .dropzone-preview-name { font-size: 13px; font-weight: 500; flex: 1; }
+    .dropzone-preview-remove {
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .dropzone-preview-remove:hover { color: var(--danger); }
+    .qr-formats {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.02);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .qr-formats-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .qr-formats-list { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── Health Panel ── */
+    .panel-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-overlay);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .panel-overlay.open { opacity: 1; pointer-events: auto; }
+    .panel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 90%;
+      max-width: 480px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-hover);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 201;
+    }
+    .panel-overlay.open .panel { transform: translateX(0); }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+      z-index: 1;
+    }
+    .panel-title { font-size: 17px; font-weight: 700; }
+    .panel-body { padding: 20px 24px; flex: 1; }
+    .health-summary {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .health-item {
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      margin-bottom: 8px;
+    }
+    .health-item-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .health-level {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .health-level--critical { background: var(--danger-dim); color: var(--danger); }
+    .health-level--warning { background: var(--warning-dim); color: var(--warning); }
+    .health-level--info { background: var(--accent-dim); color: var(--accent); }
+    .health-item-title { font-size: 13px; font-weight: 600; }
+    .health-item-detail {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .health-clean {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 0;
+      text-align: center;
+    }
+    .health-clean-icon {
+      width: 56px; height: 56px;
+      background: var(--success-dim);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+    .health-clean-title { font-size: 15px; font-weight: 600; color: var(--success); margin-bottom: 4px; }
+    .health-clean-desc { font-size: 13px; color: var(--text-secondary); }
+
+    /* ── Toast Notifications ── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 300;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+    }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      font-size: 13px;
+      font-weight: 500;
+      animation: toast-in 0.35s ease;
+      min-width: 220px;
+    }
+    .toast.removing { animation: toast-out 0.3s ease forwards; }
+    .toast--success { border-left: 3px solid var(--success); }
+    .toast--error { border-left: 3px solid var(--danger); }
+    .toast--info { border-left: 3px solid var(--accent); }
+    .toast-icon { flex-shrink: 0; font-size: 16px; }
+
+    /* ── Delete Confirm ── */
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-overlay);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 250;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .confirm-overlay.open { opacity: 1; pointer-events: auto; }
+    .confirm-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-hover);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      transform: scale(0.95);
+      transition: transform 0.2s;
+    }
+    .confirm-overlay.open .confirm-box { transform: scale(1); }
+    .confirm-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .confirm-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
+    .confirm-actions { display: flex; justify-content: center; gap: 10px; }
+
+    /* ── Animations ── */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    @keyframes otp-flash {
+      0% { opacity: 1; }
+      30% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes toast-out {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(40px); }
+    }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .card--enter { animation: card-in 0.4s ease both; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .header { padding: 12px 16px; flex-wrap: wrap; }
+      .search-wrap { max-width: none; order: 3; flex-basis: 100%; }
+      .search-kbd { display: none; }
+      .stats-bar { padding: 10px 16px; }
+      .toolbar { padding: 10px 16px; }
+      .grid { grid-template-columns: 1fr; padding: 4px 16px 32px; gap: 12px; }
+      .otp-code { font-size: 24px; letter-spacing: 2px; }
+      .timer-ring { width: 44px; height: 44px; }
+      .timer-ring-inner { width: 34px; height: 34px; }
+      .timer-text { font-size: 11px; }
+      .card-actions { opacity: 1; }
+      .btn span.desktop { display: none; }
+    }
+    @media (max-width: 480px) {
+      .header-subtitle { display: none; }
+      .stat-chip { font-size: 11px; padding: 4px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Add Account Modal -->
+  <div id="add-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-title" id="account-modal-title">Add Account</span>
+          <div class="modal-meta" id="account-modal-meta">Manual entry or QR import for a new TOTP account.</div>
+        </div>
+        <button class="modal-close" onclick="closeAddModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-tabs" id="account-modal-tabs">
+        <button class="modal-tab active" onclick="switchTab('manual')">Manual</button>
+        <button class="modal-tab" onclick="switchTab('qr')">QR Import</button>
+      </div>
+
+      <!-- Manual Tab -->
+      <form id="add-form" class="tab-content active" data-tab="manual" onsubmit="handleAddSubmit(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Account Name</label>
+            <input class="form-input" id="add-name" placeholder="GitHub:production" autocomplete="off" required>
+            <div class="form-hint" id="account-name-hint">Use Issuer:Label format for grouping (e.g. AWS:staging)</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Secret Key</label>
+            <input class="form-input" id="add-secret" placeholder="JBSWY3DPEHPK3PXP" autocomplete="off" required>
+            <div class="form-hint" id="account-secret-hint">Base32 or Base64 encoded secret from your provider</div>
+            <div class="form-error" id="add-error"></div>
+          </div>
+          <div class="advanced-toggle" id="adv-toggle" onclick="toggleAdvanced()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            Advanced Settings
+          </div>
+          <div class="advanced-content" id="adv-content">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Rotation Interval</label>
+                <input class="form-input" id="add-interval" type="number" value="30" min="1" max="300">
+                <div class="form-hint">Seconds per code (default: 30)</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Code Length</label>
+                <select class="form-input" id="add-digits">
+                  <option value="6" selected>6 digits (standard)</option>
+                  <option value="7">7 digits</option>
+                  <option value="8">8 digits</option>
+                </select>
+                <div class="form-hint">Most providers use 6 digits</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="add-submit-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <span id="add-submit-label">Add Account</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- QR Import Tab -->
+      <div class="tab-content" data-tab="qr">
+        <div class="modal-body">
+          <div class="dropzone" id="qr-dropzone">
+            <div class="dropzone-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zm4 0h3v3h-3zm-4 4h3v3h-3zm4 4h3"/></svg>
+            </div>
+            <div class="dropzone-title">Drop QR image here</div>
+            <div class="dropzone-desc">or click to browse files<br>Supports PNG, JPG, GIF</div>
+            <input type="file" id="qr-file-input" accept="image/*">
+          </div>
+          <div class="dropzone-preview" id="qr-preview">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>
+            <span class="dropzone-preview-name" id="qr-filename"></span>
+            <span class="dropzone-preview-remove" onclick="clearQRFile()" title="Remove">&times;</span>
+          </div>
+          <div class="form-error" id="qr-error"></div>
+          <div class="qr-formats">
+            <div class="qr-formats-title">Supported QR Formats</div>
+            <div class="qr-formats-list">
+              &#8226; Standard <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px">otpauth://totp/...</code> URIs<br>
+              &#8226; Google Authenticator export/migration QR codes<br>
+              &#8226; Screenshot or photo of any TOTP QR code
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" id="qr-import-btn" onclick="handleQRImport()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Import from QR
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Health Panel -->
+  <div id="health-panel" class="panel-overlay">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Health Audit</span>
+        <button class="modal-close" onclick="closeHealthPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="panel-body" id="health-body">
+        <div style="color: var(--text-muted); text-align: center; padding: 40px 0;">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm -->
+  <div id="confirm-overlay" class="confirm-overlay">
+    <div class="confirm-box">
+      <div class="confirm-title">Delete Account</div>
+      <div class="confirm-desc" id="confirm-desc"></div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toasts" class="toast-container"></div>
+
+  <script>
+    /* ══════════════════ STATE ══════════════════ */
+    let accounts = [];
+    let searchTerm = '';
+    let sortBy = 'expiry';
+    let pendingDeleteName = null;
+    let prevOTPs = {};
+    let refreshTimer = null;
+    let lastAccountKeys = '';
+    let isFirstRender = true;
+    let privacyMode = loadPrivacyMode();
+    let accountModalMode = 'add';
+    let editingOriginalName = null;
+
+    /* ══════════════════ ICONS (SVG) ══════════════════ */
+    const ICONS = {
+      copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
+      edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+      eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+      eyeOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 3 18 18"/><path d="M10.58 10.58A2 2 0 0 0 13.41 13.4"/><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.46 17.46 0 0 1-2.17 3.19"/><path d="M6.61 6.61C4.62 8 3.28 10.12 2 12c0 0 3.5 7 10 7 1.76 0 3.31-.39 4.66-1.02"/></svg>',
+      search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+      plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+      heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+      shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+      building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M8 10h.01M16 10h.01M12 14h.01M8 14h.01M16 14h.01"/></svg>',
+    };
+
+    /* ══════════════════ API ══════════════════ */
+    async function fetchAccounts() {
+      try {
+        const res = await fetch('/api/accounts');
+        if (!res.ok) throw new Error('Failed to fetch');
+        return await res.json();
+      } catch (e) {
+        console.error('Fetch accounts error:', e);
+        return null;
+      }
+    }
+
+    async function apiAddAccount(data) {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to add account');
+      return body;
+    }
+
+    async function apiUpdateAccount(name, data) {
+      const res = await fetch(`/api/accounts?name=${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to update account');
+      return body;
+    }
+
+    async function apiDeleteAccount(name) {
+      const res = await fetch(`/api/accounts?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to delete');
+      return body;
+    }
+
+    async function fetchHealth() {
+      const res = await fetch('/api/health');
+      if (!res.ok) throw new Error('Failed to fetch health');
+      return await res.json();
+    }
+
+    /* ══════════════════ RENDER ══════════════════ */
+    function renderApp() {
+      const app = document.getElementById('app');
+      applyPrivacyMode();
+      app.innerHTML = `
+        <header class="header">
+          <div class="header-brand">
+            <div class="header-logo">${ICONS.shield}</div>
+            <div>
+              <div class="header-title">TrustPIN</div>
+              <div class="header-subtitle">Secure TOTP Workspace</div>
+            </div>
+          </div>
+          <div class="search-wrap">
+            <span class="search-icon">${ICONS.search}</span>
+            <input class="search-input" id="search-input" placeholder="Search accounts..." value="${escapeHtml(searchTerm)}">
+            <span class="search-kbd">${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}K</span>
+          </div>
+          <div class="header-actions">
+            <span class="live-dot"></span>
+            <button class="btn btn-primary" onclick="openAddModal()">
+              ${ICONS.plus}
+              <span class="desktop">Add Account</span>
+            </button>
+            <button class="btn btn-ghost" onclick="openHealthPanel()">
+              ${ICONS.heart}
+              <span class="desktop">Health</span>
+            </button>
+          </div>
+        </header>
+        <div class="stats-bar" id="stats-bar"></div>
+        <div class="toolbar" id="toolbar"></div>
+        <div class="grid" id="grid"></div>
+      `;
+      document.getElementById('search-input').addEventListener('input', e => {
+        searchTerm = e.target.value;
+        updateGrid();
+      });
+    }
+
+    function updateStats() {
+      const total = accounts.length;
+      const expiring = accounts.filter(a => !a.errorText && a.timeRemaining <= 5).length;
+      const issuers = new Set(accounts.map(a => a.issuer || 'Standalone')).size;
+      const danger = accounts.filter(a => a.errorText).length;
+
+      document.getElementById('stats-bar').innerHTML = `
+        <div class="stat-chip stat-chip--accent"><span class="dot"></span>${total} account${total !== 1 ? 's' : ''}</div>
+        <div class="stat-chip stat-chip--${expiring > 0 ? 'warning' : 'success'}"><span class="dot"></span>${expiring} expiring</div>
+        <div class="stat-chip stat-chip--accent"><span class="dot"></span>${issuers} group${issuers !== 1 ? 's' : ''}</div>
+        ${danger > 0 ? `<div class="stat-chip stat-chip--danger"><span class="dot"></span>${danger} issue${danger !== 1 ? 's' : ''}</div>` : ''}
+      `;
+    }
+
+    function updateToolbar() {
+      const filtered = filterAndSort(accounts);
+      document.getElementById('toolbar').innerHTML = `
+        <div class="toolbar-label">Showing ${filtered.length} of ${accounts.length} accounts</div>
+        <div class="toolbar-right">
+          <button class="btn btn-ghost privacy-toggle ${privacyMode ? 'active' : ''}" onclick="togglePrivacyMode()" title="${privacyMode ? 'Privacy mode is on. Hover a card to reveal its code.' : 'Privacy mode is off. Codes stay visible.'}">
+            ${privacyMode ? ICONS.eyeOff : ICONS.eye}
+            <span>${privacyMode ? 'Privacy On' : 'Privacy Off'}</span>
+          </button>
+          <select class="sort-select" id="sort-select" onchange="handleSortChange(this.value)">
+            <option value="expiry" ${sortBy === 'expiry' ? 'selected' : ''}>Sort by Expiry</option>
+            <option value="name" ${sortBy === 'name' ? 'selected' : ''}>Sort by Name</option>
+            <option value="issuer" ${sortBy === 'issuer' ? 'selected' : ''}>Sort by Issuer</option>
+            <option value="digits" ${sortBy === 'digits' ? 'selected' : ''}>Sort by Digits</option>
+          </select>
+        </div>
+      `;
+    }
+
+    function updateGrid() {
+      const filtered = filterAndSort(accounts);
+      const grid = document.getElementById('grid');
+
+      grid.classList.remove('grid--single', 'grid--few');
+      if (filtered.length === 1) grid.classList.add('grid--single');
+      else if (filtered.length <= 3) grid.classList.add('grid--few');
+
+      if (accounts.length === 0) {
+        grid.innerHTML = renderEmptyState();
+        updateToolbar();
+        return;
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">${ICONS.search}</div>
+            <div class="empty-title">No matches</div>
+            <div class="empty-desc">No accounts match your current search. Try a different term.</div>
+          </div>`;
+        updateToolbar();
+        return;
+      }
+
+      grid.innerHTML = filtered.map((a, i) => renderCard(a, i)).join('');
+      updateToolbar();
+
+      /* Entry animation on first render only */
+      if (isFirstRender) {
+        grid.querySelectorAll('.card').forEach(c => c.classList.add('card--enter'));
+        isFirstRender = false;
+      }
+
+      accounts.forEach(a => prevOTPs[a.name] = a.otp);
+    }
+
+    function updateCardsInPlace(filtered) {
+      filtered.forEach(a => {
+        const card = document.querySelector(`[data-account="${CSS.escape(a.name)}"]`);
+        if (!card) return;
+
+        /* OTP code */
+        const otpEl = card.querySelector('.otp-code');
+        if (otpEl) {
+          const prev = otpEl.textContent;
+          if (prev !== a.formattedOTP) {
+            otpEl.textContent = a.formattedOTP;
+            otpEl.setAttribute('onclick', `copyOTP('${escapeJs(a.otp)}', this)`);
+            otpEl.classList.add('flash');
+            setTimeout(() => otpEl.classList.remove('flash'), 400);
+          }
+        }
+
+        /* Copy buttons */
+        card.querySelectorAll('.copy-btn').forEach(btn => {
+          btn.setAttribute('onclick', `copyOTP('${escapeJs(a.otp)}', this)`);
+        });
+        const actionCopy = card.querySelector('.card-actions .action-btn--copy');
+        if (actionCopy) actionCopy.setAttribute('onclick', `copyOTP('${escapeJs(a.otp)}', this)`);
+
+        /* Timer text */
+        const timerText = card.querySelector('.timer-text');
+        if (timerText) timerText.textContent = a.errorText ? '--' : a.timeRemaining + 's';
+
+        /* Timer ring angle */
+        const ring = card.querySelector('.timer-ring');
+        if (ring) ring.style.setProperty('--ring-angle', ((100 - a.progressPercent) * 3.6) + 'deg');
+
+        /* Progress bar */
+        const fill = card.querySelector('.progress-fill');
+        if (fill) fill.style.width = a.progressPercent + '%';
+
+        /* Status badge */
+        const statusBadge = card.querySelector('.status-badge');
+        if (statusBadge) statusBadge.className = `status-badge status--${a.tone}`;
+        const statusLabel = card.querySelector('.status-label');
+        if (statusLabel) statusLabel.textContent = a.statusLabel;
+
+        /* Card tone class */
+        card.className = card.className.replace(/card--\w+/, `card--${a.tone}`);
+      });
+
+      accounts.forEach(a => prevOTPs[a.name] = a.otp);
+    }
+
+    function renderCard(a, index) {
+      const toneClass = a.tone || 'accent';
+      const remainPct = 100 - a.progressPercent;
+      const angle = remainPct * 3.6;
+
+      return `
+        <article class="card card--${toneClass}" data-account="${escapeHtml(a.name)}" style="animation-delay: ${index * 0.04}s">
+          <div class="card-header">
+            <span class="issuer-badge">${ICONS.building} ${escapeHtml(a.issuer || 'Standalone')}</span>
+            <span class="status-badge status--${toneClass}">
+              <span class="status-dot"></span>
+              <span class="status-label">${escapeHtml(a.statusLabel)}</span>
+            </span>
+          </div>
+          <div class="card-name" title="${escapeHtml(a.label || a.name)}">${escapeHtml(a.label || a.name)}</div>
+          <div class="card-body">
+            <div class="otp-wrap">
+              <span class="otp-code" onclick="copyOTP('${escapeJs(a.otp)}', this)" title="Click to copy">${escapeHtml(a.formattedOTP)}</span>
+              <button class="copy-btn" onclick="copyOTP('${escapeJs(a.otp)}', this)" title="Copy to clipboard">${ICONS.copy}</button>
+            </div>
+            <div class="timer-ring" style="--ring-angle: ${angle}deg">
+              <div class="timer-ring-inner">
+                <span class="timer-text">${a.errorText ? '--' : a.timeRemaining + 's'}</span>
+              </div>
+            </div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: ${a.progressPercent}%"></div>
+          </div>
+          <div class="card-footer">
+            <span class="card-policy">${escapeHtml(a.policyLabel)} &middot; ${escapeHtml(a.secretPreview)}</span>
+            <div class="card-actions">
+              <button class="action-btn action-btn--edit" onclick="openEditModal('${escapeJs(a.name)}')" title="Edit">${ICONS.edit}</button>
+              <button class="action-btn action-btn--copy" onclick="copyOTP('${escapeJs(a.otp)}', this)" title="Copy">${ICONS.copy}</button>
+              <button class="action-btn action-btn--danger" onclick="promptDelete('${escapeJs(a.name)}')" title="Delete">${ICONS.trash}</button>
+            </div>
+          </div>
+          ${a.errorText ? `<div style="margin-top:8px;font-size:11px;color:var(--danger);font-weight:500">${escapeHtml(a.errorText)}</div>` : ''}
+        </article>`;
+    }
+
+    function renderEmptyState() {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">${ICONS.shield}</div>
+          <div class="empty-title">No accounts yet</div>
+          <div class="empty-desc">
+            Get started by adding your first TOTP account. You can add accounts manually or import them using the CLI with <code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;font-size:12px">trustPIN add --qr-file image.png</code>
+          </div>
+          <button class="btn btn-primary" onclick="openAddModal()">${ICONS.plus} Add First Account</button>
+        </div>`;
+    }
+
+    /* ══════════════════ HEALTH PANEL ══════════════════ */
+    async function openHealthPanel() {
+      document.getElementById('health-panel').classList.add('open');
+      document.getElementById('health-body').innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px 0">Loading...</div>';
+      try {
+        const data = await fetchHealth();
+        renderHealthBody(data);
+      } catch (e) {
+        document.getElementById('health-body').innerHTML = `<div style="color:var(--danger);text-align:center;padding:40px 0">Failed to load health data.</div>`;
+      }
+    }
+
+    function renderHealthBody(data) {
+      const body = document.getElementById('health-body');
+      let html = `
+        <div class="health-summary">
+          <div class="stat-chip stat-chip--danger"><span class="dot"></span>${data.summary.critical} critical</div>
+          <div class="stat-chip stat-chip--warning"><span class="dot"></span>${data.summary.warning} warnings</div>
+          <div class="stat-chip stat-chip--accent"><span class="dot"></span>${data.summary.info} info</div>
+          <div class="stat-chip stat-chip--accent"><span class="dot"></span>${data.total} accounts</div>
+        </div>`;
+
+      if (!data.items || data.items.length === 0) {
+        html += `
+          <div class="health-clean">
+            <div class="health-clean-icon">&#10003;</div>
+            <div class="health-clean-title">All clear</div>
+            <div class="health-clean-desc">No issues detected. Your workspace is healthy.</div>
+          </div>`;
+      } else {
+        data.items.forEach(item => {
+          html += `
+            <div class="health-item">
+              <div class="health-item-header">
+                <span class="health-level health-level--${item.level}">${item.level}</span>
+                <span class="health-item-title">${escapeHtml(item.title)}</span>
+              </div>
+              <div class="health-item-detail">${escapeHtml(item.detail)}</div>
+            </div>`;
+        });
+      }
+      body.innerHTML = html;
+    }
+
+    function closeHealthPanel() { document.getElementById('health-panel').classList.remove('open'); }
+
+    /* ══════════════════ ADD MODAL ══════════════════ */
+    let selectedQRFile = null;
+
+    function openAddModal() {
+      prepareAccountModalForAdd();
+      document.getElementById('add-modal').classList.add('open');
+      setTimeout(() => document.getElementById('add-name').focus(), 200);
+    }
+
+    function closeAddModal() { document.getElementById('add-modal').classList.remove('open'); }
+
+    function openEditModal(name) {
+      const account = accounts.find(a => normalizeAccountName(a.name) === normalizeAccountName(name));
+      if (!account) {
+        showToast('Account not found', 'error');
+        return;
+      }
+
+      prepareAccountModalForEdit(account);
+      document.getElementById('add-modal').classList.add('open');
+      setTimeout(() => document.getElementById('add-name').focus(), 200);
+    }
+
+    function prepareAccountModalForAdd() {
+      accountModalMode = 'add';
+      editingOriginalName = null;
+      resetAccountForm();
+      setAdvancedOpen(false);
+      document.getElementById('account-modal-title').textContent = 'Add Account';
+      document.getElementById('account-modal-meta').textContent = 'Manual entry or QR import for a new TOTP account.';
+      document.getElementById('account-name-hint').textContent = 'Use Issuer:Label format for grouping (e.g. AWS:staging)';
+      document.getElementById('account-secret-hint').textContent = 'Base32 or Base64 encoded secret from your provider';
+      document.getElementById('account-modal-tabs').classList.remove('hidden');
+      document.getElementById('add-secret').required = true;
+      document.getElementById('add-secret').placeholder = 'JBSWY3DPEHPK3PXP';
+      document.getElementById('add-submit-btn').innerHTML = renderAccountSubmitButton();
+    }
+
+    function prepareAccountModalForEdit(account) {
+      accountModalMode = 'edit';
+      editingOriginalName = account.name;
+      resetAccountForm();
+      document.getElementById('account-modal-title').textContent = 'Edit Account';
+      document.getElementById('account-modal-meta').textContent = 'Update the account label, OTP policy, or replace the secret if it has changed.';
+      document.getElementById('account-name-hint').textContent = 'Rename the full account path if needed. Issuer:Label still gives the best grouping.';
+      document.getElementById('account-secret-hint').textContent = `Leave blank to keep the current secret (${account.secretPreview}). Enter a new secret only if you want to replace it.`;
+      document.getElementById('account-modal-tabs').classList.add('hidden');
+      document.getElementById('add-name').value = account.name;
+      document.getElementById('add-secret').required = false;
+      document.getElementById('add-secret').placeholder = 'Leave blank to keep current secret';
+      document.getElementById('add-interval').value = account.interval || 30;
+      document.getElementById('add-digits').value = String(account.digits || 6);
+      document.getElementById('add-submit-btn').innerHTML = renderAccountSubmitButton();
+      switchTab('manual');
+      setAdvancedOpen(true);
+    }
+
+    function resetAccountForm() {
+      document.getElementById('add-form').reset();
+      document.getElementById('add-name').value = '';
+      document.getElementById('add-secret').value = '';
+      document.getElementById('add-interval').value = '30';
+      document.getElementById('add-digits').value = '6';
+      document.getElementById('add-error').classList.remove('show');
+      document.getElementById('add-error').textContent = '';
+      document.getElementById('qr-error').classList.remove('show');
+      document.getElementById('qr-error').textContent = '';
+      clearQRFile();
+      switchTab('manual');
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.modal-tab[onclick*="${tab}"]`).classList.add('active');
+      document.querySelector(`.tab-content[data-tab="${tab}"]`).classList.add('active');
+    }
+
+    function setAdvancedOpen(open) {
+      const toggle = document.getElementById('adv-toggle');
+      const content = document.getElementById('adv-content');
+      toggle.classList.toggle('open', open);
+      content.classList.toggle('open', open);
+    }
+
+    function toggleAdvanced() {
+      const toggle = document.getElementById('adv-toggle');
+      setAdvancedOpen(!toggle.classList.contains('open'));
+    }
+
+    async function handleAddSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('add-name').value.trim();
+      const secret = document.getElementById('add-secret').value.trim();
+      const interval = parseInt(document.getElementById('add-interval').value) || 30;
+      const digits = parseInt(document.getElementById('add-digits').value) || 6;
+      const errEl = document.getElementById('add-error');
+      const btn = document.getElementById('add-submit-btn');
+      errEl.classList.remove('show');
+      errEl.textContent = '';
+
+      if (!name || (accountModalMode === 'add' && !secret)) {
+        errEl.textContent = accountModalMode === 'edit'
+          ? 'Account name is required. Leave the secret blank to keep the current value.'
+          : 'Name and secret are required.';
+        errEl.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = accountModalMode === 'edit' ? 'Saving...' : 'Adding...';
+      try {
+        if (accountModalMode === 'edit') {
+          await apiUpdateAccount(editingOriginalName, { name, secret, interval, digits });
+        } else {
+          await apiAddAccount({ name, secret, interval, digits });
+        }
+        closeAddModal();
+        showToast(accountModalMode === 'edit' ? 'Account updated successfully' : 'Account added successfully', 'success');
+        lastAccountKeys = '';
+        await refresh();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = renderAccountSubmitButton();
+      }
+    }
+
+    /* ══════════════════ QR IMPORT ══════════════════ */
+    function setupDropzone() {
+      const zone = document.getElementById('qr-dropzone');
+      const input = document.getElementById('qr-file-input');
+
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) selectQRFile(e.dataTransfer.files[0]);
+      });
+      input.addEventListener('change', () => {
+        if (input.files.length > 0) selectQRFile(input.files[0]);
+      });
+    }
+
+    function selectQRFile(file) {
+      if (!file.type.startsWith('image/')) {
+        showToast('Please select an image file', 'error');
+        return;
+      }
+      selectedQRFile = file;
+      document.getElementById('qr-filename').textContent = file.name;
+      document.getElementById('qr-preview').classList.add('show');
+      document.getElementById('qr-error').classList.remove('show');
+    }
+
+    function clearQRFile() {
+      selectedQRFile = null;
+      document.getElementById('qr-file-input').value = '';
+      document.getElementById('qr-preview').classList.remove('show');
+      document.getElementById('qr-filename').textContent = '';
+    }
+
+    async function handleQRImport() {
+      const errEl = document.getElementById('qr-error');
+      const btn = document.getElementById('qr-import-btn');
+
+      if (!selectedQRFile) {
+        errEl.textContent = 'Please select a QR code image first.';
+        errEl.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+      errEl.classList.remove('show');
+
+      try {
+        const form = new FormData();
+        form.append('qr', selectedQRFile);
+        const res = await fetch('/api/accounts/import', { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Import failed');
+
+        closeAddModal();
+        const parts = [];
+        if (data.added > 0) parts.push(`${data.added} added`);
+        if (data.replaced > 0) parts.push(`${data.replaced} replaced`);
+        if (data.skipped > 0) parts.push(`${data.skipped} skipped`);
+        showToast(`QR import: ${parts.join(', ')}`, 'success');
+        lastAccountKeys = '';
+        await refresh();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> Import from QR`;
+      }
+    }
+
+    /* ══════════════════ DELETE ══════════════════ */
+    function promptDelete(name) {
+      pendingDeleteName = name;
+      document.getElementById('confirm-desc').textContent = `Are you sure you want to delete "${name}"? This action cannot be undone.`;
+      document.getElementById('confirm-overlay').classList.add('open');
+    }
+
+    function closeConfirm() {
+      pendingDeleteName = null;
+      document.getElementById('confirm-overlay').classList.remove('open');
+    }
+
+    async function confirmDelete() {
+      if (!pendingDeleteName) return;
+      const name = pendingDeleteName;
+      closeConfirm();
+      try {
+        await apiDeleteAccount(name);
+        showToast(`"${name}" deleted`, 'success');
+        await refresh();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    /* ══════════════════ CLIPBOARD ══════════════════ */
+    async function copyOTP(otp, el) {
+      if (!otp || otp === '--- ---') return;
+      try {
+        await navigator.clipboard.writeText(otp.replace(/\s/g, ''));
+        showToast('OTP copied to clipboard', 'success');
+        if (el) {
+          const btn = el.closest('.copy-btn') || el.parentElement.querySelector('.copy-btn');
+          if (btn) {
+            btn.innerHTML = ICONS.check;
+            btn.classList.add('copied');
+            setTimeout(() => { btn.innerHTML = ICONS.copy; btn.classList.remove('copied'); }, 1200);
+          }
+        }
+      } catch (e) {
+        showToast('Failed to copy', 'error');
+      }
+    }
+
+    /* ══════════════════ TOASTS ══════════════════ */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toasts');
+      const icons = { success: '&#10003;', error: '&#10007;', info: '&#8505;' };
+      const toast = document.createElement('div');
+      toast.className = `toast toast--${type}`;
+      toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('removing');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    /* ══════════════════ FILTER / SORT ══════════════════ */
+    function filterAndSort(list) {
+      let result = [...list];
+      if (searchTerm) {
+        const terms = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+        result = result.filter(a => {
+          const hay = `${a.name} ${a.issuer} ${a.label}`.toLowerCase();
+          return terms.every(t => hay.includes(t));
+        });
+      }
+      result.sort((a, b) => {
+        switch (sortBy) {
+          case 'name': return a.name.localeCompare(b.name);
+          case 'issuer': return (a.issuer || '').localeCompare(b.issuer || '') || a.name.localeCompare(b.name);
+          case 'digits': return a.digits - b.digits || a.name.localeCompare(b.name);
+          default: return a.timeRemaining - b.timeRemaining || a.name.localeCompare(b.name);
+        }
+      });
+      return result;
+    }
+
+    function handleSortChange(value) {
+      sortBy = value;
+      updateGrid();
+    }
+
+    /* ══════════════════ HELPERS ══════════════════ */
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function escapeJs(str) {
+      if (!str) return '';
+      return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    function normalizeAccountName(str) {
+      return (str || '').trim().toLowerCase();
+    }
+
+    function renderAccountSubmitButton() {
+      if (accountModalMode === 'edit') {
+        return `${ICONS.edit}<span id="add-submit-label">Save Changes</span>`;
+      }
+      return `${ICONS.plus}<span id="add-submit-label">Add Account</span>`;
+    }
+
+    function loadPrivacyMode() {
+      try {
+        const stored = localStorage.getItem('trustpin-privacy-mode');
+        if (stored === null) return true;
+        return stored !== 'off';
+      } catch (e) {
+        return true;
+      }
+    }
+
+    function savePrivacyMode() {
+      try {
+        localStorage.setItem('trustpin-privacy-mode', privacyMode ? 'on' : 'off');
+      } catch (e) {
+        /* ignore storage failures */
+      }
+    }
+
+    function applyPrivacyMode() {
+      document.body.classList.toggle('privacy-mode', privacyMode);
+    }
+
+    function togglePrivacyMode() {
+      privacyMode = !privacyMode;
+      savePrivacyMode();
+      applyPrivacyMode();
+      updateToolbar();
+      showToast(privacyMode ? 'Privacy mode enabled' : 'Privacy mode disabled', 'info');
+    }
+
+    /* ══════════════════ KEYBOARD ══════════════════ */
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('search-input')?.focus();
+      }
+      if (e.key === 'Escape') {
+        closeAddModal();
+        closeHealthPanel();
+        closeConfirm();
+      }
+    });
+
+    /* Click outside to close overlays */
+    document.getElementById('add-modal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeAddModal();
+    });
+    document.getElementById('health-panel').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeHealthPanel();
+    });
+    document.getElementById('confirm-overlay').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeConfirm();
+    });
+
+    /* ══════════════════ MAIN LOOP ══════════════════ */
+    async function refresh() {
+      const data = await fetchAccounts();
+      if (data === null) return;
+
+      accounts = data;
+      updateStats();
+
+      const filtered = filterAndSort(accounts);
+      const newKeys = filtered.map(a => a.name).join('\n');
+
+      if (newKeys !== lastAccountKeys) {
+        lastAccountKeys = newKeys;
+        updateGrid();
+      } else {
+        updateCardsInPlace(filtered);
+        updateToolbar();
+      }
+    }
+
+    async function init() {
+      renderApp();
+      setupDropzone();
+      await refresh();
+      refreshTimer = setInterval(refresh, 1000);
+    }
+
+    init();
+  </script>
+</body>
+</html>
