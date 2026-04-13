@@ -147,6 +147,46 @@ func BuildAccountSnapshot(account Account) AccountSnapshot {
 		label = account.Name
 	}
 
+	tags := account.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	// Archived accounts: no OTP generation, return dormant snapshot
+	if account.Archived {
+		policyLabel := fmt.Sprintf("%d digits / %ds", account.Digits, account.Interval)
+		if account.Type == TypeHOTP {
+			policyLabel = fmt.Sprintf("%d digits / counter %d", account.Digits, account.Counter)
+		} else if account.Type == TypeSteam {
+			policyLabel = "Steam Guard"
+		}
+		return AccountSnapshot{
+			Account:         account,
+			Name:            account.Name,
+			DisplayName:     label,
+			Issuer:          issuer,
+			Label:           label,
+			OTP:             "",
+			FormattedOTP:    "-- --",
+			TimeRemaining:   0,
+			Interval:        account.Interval,
+			Digits:          account.Digits,
+			Algorithm:       account.Algorithm,
+			Type:            account.Type,
+			Counter:         account.Counter,
+			Tags:            tags,
+			Favorite:        account.Favorite,
+			Notes:           account.Notes,
+			SortOrder:       account.SortOrder,
+			Archived:        true,
+			StatusLabel:     "ARCHIVED",
+			Tone:            "accent",
+			ProgressPercent: 0,
+			PolicyLabel:     policyLabel,
+			SecretPreview:   PreviewSecret(account.Secret),
+		}
+	}
+
 	var otp string
 	var remaining int64
 	var err error
@@ -183,11 +223,6 @@ func BuildAccountSnapshot(account Account) AccountSnapshot {
 	}
 	if account.Algorithm != AlgorithmSHA1 {
 		policyLabel += " / " + account.Algorithm
-	}
-
-	tags := account.Tags
-	if tags == nil {
-		tags = []string{}
 	}
 
 	return AccountSnapshot{
