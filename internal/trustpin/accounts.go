@@ -31,11 +31,29 @@ type Service struct {
 }
 
 type Account struct {
-	Name     string
-	Secret   string
-	Interval int64
-	Digits   int
+	Name      string   `json:"Name"`
+	Secret    string   `json:"Secret"`
+	Interval  int64    `json:"Interval"`
+	Digits    int      `json:"Digits"`
+	Algorithm string   `json:"Algorithm,omitempty"`
+	Type      string   `json:"Type,omitempty"`
+	Counter   int64    `json:"Counter,omitempty"`
+	Tags      []string `json:"Tags,omitempty"`
+	Favorite  bool     `json:"Favorite,omitempty"`
+	Notes     string   `json:"Notes,omitempty"`
+	SortOrder int      `json:"SortOrder,omitempty"`
+	Archived  bool     `json:"Archived,omitempty"`
 }
+
+const (
+	AlgorithmSHA1   = "SHA1"
+	AlgorithmSHA256 = "SHA256"
+	AlgorithmSHA512 = "SHA512"
+
+	TypeTOTP  = "totp"
+	TypeHOTP  = "hotp"
+	TypeSteam = "steam"
+)
 
 type AccountChange struct {
 	Name   string `json:"name"`
@@ -254,6 +272,28 @@ func (s Service) UpdateAccount(currentName string, updated Account) error {
 	}
 
 	return nil
+}
+
+func (s Service) SetAccountArchived(name string, archived bool) error {
+	accounts, err := s.LoadAccounts()
+	if err != nil {
+		return fmt.Errorf("load accounts: %w", err)
+	}
+
+	nameKey := normalizeAccountName(name)
+	found := false
+	for i, a := range accounts {
+		if normalizeAccountName(a.Name) == nameKey {
+			accounts[i].Archived = archived
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("no account found matching %q", name)
+	}
+
+	return s.SaveAccounts(accounts)
 }
 
 func (s Service) ImportAccountsFromQR(qrFile string) (ImportResult, error) {
@@ -630,7 +670,37 @@ func sanitizeAccount(account Account) Account {
 	if account.Digits <= 0 {
 		account.Digits = DefaultDigits
 	}
+	account.Algorithm = NormalizeAlgorithm(account.Algorithm)
+	account.Type = NormalizeType(account.Type)
+	if account.Type == TypeSteam {
+		account.Digits = 5
+		account.Interval = 30
+		account.Algorithm = AlgorithmSHA1
+	}
+	account.Notes = strings.TrimSpace(account.Notes)
 	return account
+}
+
+func NormalizeAlgorithm(alg string) string {
+	switch strings.ToUpper(strings.TrimSpace(alg)) {
+	case AlgorithmSHA256, "SHA-256":
+		return AlgorithmSHA256
+	case AlgorithmSHA512, "SHA-512":
+		return AlgorithmSHA512
+	default:
+		return AlgorithmSHA1
+	}
+}
+
+func NormalizeType(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case TypeHOTP:
+		return TypeHOTP
+	case TypeSteam:
+		return TypeSteam
+	default:
+		return TypeTOTP
+	}
 }
 
 func buildNameIndex(accounts []Account) map[string]int {

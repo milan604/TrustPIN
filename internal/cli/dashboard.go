@@ -52,6 +52,11 @@ type accountViewModel struct {
 	PolicyLabel     string
 	ProgressBar     string
 	ProgressPercent int
+	Tags            []string
+	Favorite        bool
+	Notes           string
+	Algorithm       string
+	Type            string
 }
 
 type dashboardStats struct {
@@ -153,6 +158,9 @@ func buildDashboardView(accounts []trustpin.Account, opts showOptions) ([]accoun
 	expiringSoon := 0
 
 	for _, account := range accounts {
+		if account.Archived {
+			continue
+		}
 		account = sanitizeAccount(account)
 		issuer, _, hasIssuer := trustpin.SplitAccountName(account.Name)
 		group := "ungrouped"
@@ -206,6 +214,11 @@ func buildAccountViewModel(account trustpin.Account) accountViewModel {
 		PolicyLabel:     snapshot.PolicyLabel,
 		ProgressBar:     progressBar(snapshot.ProgressPercent, 18),
 		ProgressPercent: snapshot.ProgressPercent,
+		Tags:            snapshot.Tags,
+		Favorite:        snapshot.Favorite,
+		Notes:           snapshot.Notes,
+		Algorithm:       snapshot.Algorithm,
+		Type:            snapshot.Type,
 	}
 }
 
@@ -251,6 +264,14 @@ func sortViewModels(accounts []accountViewModel, sortBy string) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		left := accounts[i]
 		right := accounts[j]
+
+		// Favorites always come first, and stay in stable name order among themselves
+		if left.Favorite != right.Favorite {
+			return left.Favorite
+		}
+		if left.Favorite && right.Favorite {
+			return normalizeAccountName(left.FullName) < normalizeAccountName(right.FullName)
+		}
 
 		switch sortBy {
 		case "name":
@@ -391,12 +412,18 @@ func renderCompactList(accounts []accountViewModel, width int) []string {
 	}
 
 	for _, account := range accounts {
-		left := truncateText(account.FullName, accountWidth)
+		favPrefix := ""
+		if account.Favorite {
+			favPrefix = "★ "
+		}
+		left := truncateText(favPrefix+account.FullName, accountWidth)
 		otp := truncateText(account.FormattedOTP, 10)
 		policy := truncateText(account.PolicyLabel, 15)
 		leftSeconds := "--"
-		if account.ErrorText == "" {
+		if account.ErrorText == "" && account.Type != "hotp" {
 			leftSeconds = fmt.Sprintf("%2ds", account.TimeRemaining)
+		} else if account.Type == "hotp" {
+			leftSeconds = fmt.Sprintf("C:%d", account.Account.Counter)
 		}
 		line := fmt.Sprintf("%s %-10s %4s  %-15s %s",
 			padRight(left, accountWidth),
@@ -452,19 +479,34 @@ func renderCardGrid(accounts []accountViewModel, width int) []string {
 func renderAccountCard(account accountViewModel, width int) []string {
 	inner := width - 4
 	timerText := "--"
-	if account.ErrorText == "" {
+	if account.ErrorText == "" && account.Type != "hotp" {
 		timerText = fmt.Sprintf("%2ds", account.TimeRemaining)
+	} else if account.Type == "hotp" {
+		timerText = fmt.Sprintf("C:%d", account.Account.Counter)
+	}
+
+	favPrefix := ""
+	if account.Favorite {
+		favPrefix = "★ "
 	}
 
 	lines := []string{
-		alignLine(headingText(truncateText(account.DisplayName, inner-10)), styleTone(account.Tone, timerText), inner),
+		alignLine(headingText(truncateText(favPrefix+account.DisplayName, inner-10)), styleTone(account.Tone, timerText), inner),
 		mutedText(truncateText("issuer "+account.Issuer+" | "+account.PolicyLabel, inner)),
 		"",
 		styleTone(account.Tone, account.FormattedOTP),
 		alignLine(mutedText("status "+strings.ToLower(account.StatusLabel)), mutedText(account.FullName), inner),
-		alignLine(mutedText("cycle  "+account.ProgressBar), mutedText(fmt.Sprintf("%d%%", account.ProgressPercent)), inner),
-		styleTone(map[bool]string{true: toneDanger, false: toneMuted}[account.ErrorText != ""], truncateText(account.noteLine(), inner)),
 	}
+
+	if account.Type != "hotp" {
+		lines = append(lines, alignLine(mutedText("cycle  "+account.ProgressBar), mutedText(fmt.Sprintf("%d%%", account.ProgressPercent)), inner))
+	}
+
+	if len(account.Tags) > 0 {
+		lines = append(lines, mutedText("tags   "+strings.Join(account.Tags, ", ")))
+	}
+
+	lines = append(lines, styleTone(map[bool]string{true: toneDanger, false: toneMuted}[account.ErrorText != ""], truncateText(account.noteLine(), inner)))
 
 	return renderPanel("", lines, width)
 }

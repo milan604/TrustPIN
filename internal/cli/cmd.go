@@ -97,6 +97,12 @@ func NewRootCmd(service trustpin.Service) *cobra.Command {
 	addCmd.Flags().IntP("interval", "i", trustpin.DefaultInterval, "Rotation interval in seconds")
 	addCmd.Flags().IntP("digits", "d", trustpin.DefaultDigits, "Number of TOTP digits")
 	addCmd.Flags().StringP("qr-file", "q", "", "Path to a QR image file containing an otpauth payload")
+	addCmd.Flags().StringP("algorithm", "a", "SHA1", "Hash algorithm: SHA1, SHA256, SHA512")
+	addCmd.Flags().StringP("type", "t", "totp", "OTP type: totp, hotp, steam")
+	addCmd.Flags().Int64("counter", 0, "Initial counter value for HOTP accounts")
+	addCmd.Flags().StringSlice("tags", nil, "Comma-separated tags for the account")
+	addCmd.Flags().Bool("favorite", false, "Mark the account as a favorite")
+	addCmd.Flags().String("notes", "", "Notes or recovery codes to attach to the account")
 
 	configureShowFlags(rootCmd)
 	configureShowFlags(showCmd)
@@ -151,6 +157,12 @@ func (a *App) addAccount(cmd *cobra.Command, args []string) error {
 	qrFile, _ := cmd.Flags().GetString("qr-file")
 	interval, _ := cmd.Flags().GetInt("interval")
 	digits, _ := cmd.Flags().GetInt("digits")
+	algorithm, _ := cmd.Flags().GetString("algorithm")
+	otpType, _ := cmd.Flags().GetString("type")
+	counter, _ := cmd.Flags().GetInt64("counter")
+	tags, _ := cmd.Flags().GetStringSlice("tags")
+	favorite, _ := cmd.Flags().GetBool("favorite")
+	notes, _ := cmd.Flags().GetString("notes")
 
 	if interval <= 0 {
 		return fmt.Errorf("interval must be a positive integer")
@@ -178,10 +190,16 @@ func (a *App) addAccount(cmd *cobra.Command, args []string) error {
 	}
 
 	summary, err := service.UpsertAccounts([]trustpin.Account{{
-		Name:     account,
-		Secret:   secret,
-		Interval: int64(interval),
-		Digits:   digits,
+		Name:      account,
+		Secret:    secret,
+		Interval:  int64(interval),
+		Digits:    digits,
+		Algorithm: algorithm,
+		Type:      otpType,
+		Counter:   counter,
+		Tags:      tags,
+		Favorite:  favorite,
+		Notes:     notes,
 	}})
 	if err != nil {
 		return err

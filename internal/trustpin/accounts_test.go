@@ -242,3 +242,254 @@ func TestServiceUpdateAccountKeepsExistingSecretWhenBlank(t *testing.T) {
 		t.Fatalf("expected secret to be preserved, got %+v", accounts[0])
 	}
 }
+
+func TestGenerateTOTPWithSHA256(t *testing.T) {
+	otp, remaining, err := GenerateTOTPWithAlgorithm("JBSWY3DPEHPK3PXP", 30, 6, AlgorithmSHA256)
+	if err != nil {
+		t.Fatalf("SHA256 TOTP failed: %v", err)
+	}
+	if len(otp) != 6 {
+		t.Fatalf("expected 6 digits, got %q", otp)
+	}
+	if remaining <= 0 || remaining > 30 {
+		t.Fatalf("unexpected remaining time: %d", remaining)
+	}
+}
+
+func TestGenerateTOTPWithSHA512(t *testing.T) {
+	otp, _, err := GenerateTOTPWithAlgorithm("JBSWY3DPEHPK3PXP", 30, 8, AlgorithmSHA512)
+	if err != nil {
+		t.Fatalf("SHA512 TOTP failed: %v", err)
+	}
+	if len(otp) != 8 {
+		t.Fatalf("expected 8 digits, got %q", otp)
+	}
+}
+
+func TestGenerateHOTP(t *testing.T) {
+	otp, err := GenerateHOTP("JBSWY3DPEHPK3PXP", 0, 6, AlgorithmSHA1)
+	if err != nil {
+		t.Fatalf("HOTP failed: %v", err)
+	}
+	if len(otp) != 6 {
+		t.Fatalf("expected 6 digits, got %q", otp)
+	}
+
+	// HOTP with same counter should always produce the same code
+	otp2, err := GenerateHOTP("JBSWY3DPEHPK3PXP", 0, 6, AlgorithmSHA1)
+	if err != nil {
+		t.Fatalf("HOTP repeat failed: %v", err)
+	}
+	if otp != otp2 {
+		t.Fatalf("same counter should produce same code: %q != %q", otp, otp2)
+	}
+
+	// Different counter should produce different code (almost certainly)
+	otp3, err := GenerateHOTP("JBSWY3DPEHPK3PXP", 1, 6, AlgorithmSHA1)
+	if err != nil {
+		t.Fatalf("HOTP counter=1 failed: %v", err)
+	}
+	if otp == otp3 {
+		t.Logf("warning: counter 0 and 1 produced same code (unlikely but possible)")
+	}
+}
+
+func TestGenerateSteamCode(t *testing.T) {
+	code, remaining, err := GenerateSteamCode("JBSWY3DPEHPK3PXP", 30)
+	if err != nil {
+		t.Fatalf("Steam code failed: %v", err)
+	}
+	if len(code) != 5 {
+		t.Fatalf("expected 5 char Steam code, got %q", code)
+	}
+	if remaining <= 0 || remaining > 30 {
+		t.Fatalf("unexpected remaining time: %d", remaining)
+	}
+	// Verify only valid Steam characters
+	for _, c := range code {
+		if !strings.ContainsRune("23456789BCDFGHJKMNPQRTVWXY", c) {
+			t.Fatalf("invalid Steam character %q in code %q", string(c), code)
+		}
+	}
+}
+
+func TestBuildAccountSnapshotHOTP(t *testing.T) {
+	snapshot := BuildAccountSnapshot(Account{
+		Name:    "Service:test",
+		Secret:  "JBSWY3DPEHPK3PXP",
+		Digits:  6,
+		Type:    TypeHOTP,
+		Counter: 42,
+	})
+	if snapshot.Type != TypeHOTP {
+		t.Fatalf("expected HOTP type, got %q", snapshot.Type)
+	}
+	if snapshot.Counter != 42 {
+		t.Fatalf("expected counter 42, got %d", snapshot.Counter)
+	}
+	if snapshot.TimeRemaining != -1 {
+		t.Fatalf("expected -1 time remaining for HOTP, got %d", snapshot.TimeRemaining)
+	}
+	if !strings.Contains(snapshot.PolicyLabel, "counter 42") {
+		t.Fatalf("expected counter in policy label, got %q", snapshot.PolicyLabel)
+	}
+}
+
+func TestBuildAccountSnapshotSteam(t *testing.T) {
+	snapshot := BuildAccountSnapshot(Account{
+		Name:   "Steam:myaccount",
+		Secret: "JBSWY3DPEHPK3PXP",
+		Type:   TypeSteam,
+	})
+	if snapshot.Type != TypeSteam {
+		t.Fatalf("expected steam type, got %q", snapshot.Type)
+	}
+	if snapshot.Digits != 5 {
+		t.Fatalf("expected 5 digits for Steam, got %d", snapshot.Digits)
+	}
+	if snapshot.PolicyLabel != "Steam Guard" {
+		t.Fatalf("expected Steam Guard policy, got %q", snapshot.PolicyLabel)
+	}
+}
+
+func TestBuildOTPAuthURI(t *testing.T) {
+	uri := BuildOTPAuthURI(Account{
+		Name:      "GitHub:work",
+		Secret:    "JBSWY3DPEHPK3PXP",
+		Interval:  30,
+		Digits:    6,
+		Algorithm: AlgorithmSHA1,
+		Type:      TypeTOTP,
+	})
+	if !strings.HasPrefix(uri, "otpauth://totp/") {
+		t.Fatalf("expected otpauth URI, got %q", uri)
+	}
+	if !strings.Contains(uri, "secret=JBSWY3DPEHPK3PXP") {
+		t.Fatalf("expected secret in URI, got %q", uri)
+	}
+	if !strings.Contains(uri, "issuer=GitHub") {
+		t.Fatalf("expected issuer in URI, got %q", uri)
+	}
+}
+
+func TestBuildOTPAuthURIHOTP(t *testing.T) {
+	uri := BuildOTPAuthURI(Account{
+		Name:    "Service:test",
+		Secret:  "JBSWY3DPEHPK3PXP",
+		Digits:  6,
+		Type:    TypeHOTP,
+		Counter: 10,
+	})
+	if !strings.HasPrefix(uri, "otpauth://hotp/") {
+		t.Fatalf("expected hotp URI, got %q", uri)
+	}
+	if !strings.Contains(uri, "counter=10") {
+		t.Fatalf("expected counter in URI, got %q", uri)
+	}
+}
+
+func TestNormalizeAlgorithm(t *testing.T) {
+	cases := map[string]string{
+		"":        AlgorithmSHA1,
+		"sha1":    AlgorithmSHA1,
+		"SHA256":  AlgorithmSHA256,
+		"sha-256": AlgorithmSHA256,
+		"SHA512":  AlgorithmSHA512,
+		"sha-512": AlgorithmSHA512,
+		"unknown": AlgorithmSHA1,
+	}
+	for input, expected := range cases {
+		if got := NormalizeAlgorithm(input); got != expected {
+			t.Fatalf("NormalizeAlgorithm(%q) = %q, want %q", input, got, expected)
+		}
+	}
+}
+
+func TestNormalizeType(t *testing.T) {
+	cases := map[string]string{
+		"":      TypeTOTP,
+		"totp":  TypeTOTP,
+		"HOTP":  TypeHOTP,
+		"steam": TypeSteam,
+		"other": TypeTOTP,
+	}
+	for input, expected := range cases {
+		if got := NormalizeType(input); got != expected {
+			t.Fatalf("NormalizeType(%q) = %q, want %q", input, got, expected)
+		}
+	}
+}
+
+func TestAccountTagsAndFavoritesPersist(t *testing.T) {
+	tmpDir := t.TempDir()
+	service := Service{
+		StorePath: filepath.Join(tmpDir, "accounts.enc"),
+		KeyPath:   filepath.Join(tmpDir, "accounts.key"),
+	}
+
+	input := []Account{{
+		Name:     "GitHub:work",
+		Secret:   "JBSWY3DPEHPK3PXP",
+		Interval: 30,
+		Digits:   6,
+		Tags:     []string{"work", "dev"},
+		Favorite: true,
+		Notes:    "Recovery: ABC123",
+	}}
+
+	if err := service.SaveAccounts(input); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := service.LoadAccounts()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 account, got %d", len(loaded))
+	}
+	if len(loaded[0].Tags) != 2 || loaded[0].Tags[0] != "work" {
+		t.Fatalf("tags not preserved: %v", loaded[0].Tags)
+	}
+	if !loaded[0].Favorite {
+		t.Fatalf("favorite not preserved")
+	}
+	if loaded[0].Notes != "Recovery: ABC123" {
+		t.Fatalf("notes not preserved: %q", loaded[0].Notes)
+	}
+}
+
+func TestGenerateQRCodePNG(t *testing.T) {
+	png, err := GenerateQRCodePNG(Account{
+		Name:     "Test:account",
+		Secret:   "JBSWY3DPEHPK3PXP",
+		Interval: 30,
+		Digits:   6,
+	}, 128)
+	if err != nil {
+		t.Fatalf("QR generation failed: %v", err)
+	}
+	if len(png) < 100 {
+		t.Fatalf("QR PNG too small: %d bytes", len(png))
+	}
+	// Check PNG magic bytes
+	if png[0] != 0x89 || png[1] != 'P' || png[2] != 'N' || png[3] != 'G' {
+		t.Fatalf("output is not valid PNG")
+	}
+}
+
+func TestParseOtpauthURIWithHOTP(t *testing.T) {
+	account, secret, interval, digits, algorithm, otpType, counter, err := ParseOtpauthURI("otpauth://hotp/Service:user?secret=JBSWY3DPEHPK3PXP&counter=5&digits=6")
+	if err != nil {
+		t.Fatalf("parse HOTP URI: %v", err)
+	}
+	if otpType != "hotp" {
+		t.Fatalf("expected hotp type, got %q", otpType)
+	}
+	if counter != 5 {
+		t.Fatalf("expected counter 5, got %d", counter)
+	}
+	if account == "" || secret == "" || interval <= 0 || digits <= 0 {
+		t.Fatalf("unexpected parsed values: account=%q secret=%q interval=%d digits=%d algorithm=%q", account, secret, interval, digits, algorithm)
+	}
+}

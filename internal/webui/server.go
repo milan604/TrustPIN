@@ -20,10 +20,18 @@ type server struct {
 }
 
 type apiAddRequest struct {
-	Name     string `json:"name"`
-	Secret   string `json:"secret"`
-	Interval int64  `json:"interval"`
-	Digits   int    `json:"digits"`
+	Name      string   `json:"name"`
+	Secret    string   `json:"secret"`
+	Interval  int64    `json:"interval"`
+	Digits    int      `json:"digits"`
+	Algorithm string   `json:"algorithm"`
+	Type      string   `json:"type"`
+	Counter   int64    `json:"counter"`
+	Tags      []string `json:"tags"`
+	Favorite  bool     `json:"favorite"`
+	Notes     string   `json:"notes"`
+	SortOrder int      `json:"sortOrder"`
+	Archived  bool     `json:"archived"`
 }
 
 func Start(service trustpin.Service, port int) error {
@@ -33,6 +41,9 @@ func Start(service trustpin.Service, port int) error {
 	mux.HandleFunc("/", srv.handleUI)
 	mux.HandleFunc("/api/accounts", srv.handleAPIAccounts)
 	mux.HandleFunc("/api/accounts/import", srv.handleImportQRAPI)
+	mux.HandleFunc("/api/accounts/qr", srv.handleAccountQR)
+	mux.HandleFunc("/api/accounts/reorder", srv.handleReorderAPI)
+	mux.HandleFunc("/api/accounts/archive", srv.handleArchiveAPI)
 	mux.HandleFunc("/api/health", srv.handleAPIHealth)
 
 	bindAddr := fmt.Sprintf("127.0.0.1:%d", port)
@@ -119,10 +130,17 @@ func (s server) handleAddAccountAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	summary, err := s.service.UpsertAccounts([]trustpin.Account{{
-		Name:     req.Name,
-		Secret:   req.Secret,
-		Interval: req.Interval,
-		Digits:   req.Digits,
+		Name:      req.Name,
+		Secret:    req.Secret,
+		Interval:  req.Interval,
+		Digits:    req.Digits,
+		Algorithm: req.Algorithm,
+		Type:      req.Type,
+		Counter:   req.Counter,
+		Tags:      req.Tags,
+		Favorite:  req.Favorite,
+		Notes:     req.Notes,
+		SortOrder: req.SortOrder,
 	}})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -162,10 +180,18 @@ func (s server) handleUpdateAccountAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.service.UpdateAccount(currentName, trustpin.Account{
-		Name:     req.Name,
-		Secret:   req.Secret,
-		Interval: req.Interval,
-		Digits:   req.Digits,
+		Name:      req.Name,
+		Secret:    req.Secret,
+		Interval:  req.Interval,
+		Digits:    req.Digits,
+		Algorithm: req.Algorithm,
+		Type:      req.Type,
+		Counter:   req.Counter,
+		Tags:      req.Tags,
+		Favorite:  req.Favorite,
+		Notes:     req.Notes,
+		SortOrder: req.SortOrder,
+		Archived:  req.Archived,
 	}); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -259,6 +285,123 @@ func (s server) handleImportQRAPI(w http.ResponseWriter, r *http.Request) {
 		"changes":  result.Summary.Changes,
 		"details":  result.Skipped,
 	})
+}
+
+func (s server) handleAccountQR(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name query parameter is required"})
+		return
+	}
+
+	accounts, err := s.service.LoadAccounts()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	var target *trustpin.Account
+	nameKey := strings.ToLower(name)
+	for _, a := range accounts {
+		if strings.ToLower(strings.TrimSpace(a.Name)) == nameKey {
+			target = &a
+			break
+		}
+	}
+	if target == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
+		return
+	}
+
+	png, err := trustpin.GenerateQRCodePNG(*target, 256)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate QR code"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(png)
+}
+
+func (s server) handleReorderAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPut {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var order []struct {
+		Name      string `json:"name"`
+		SortOrder int    `json:"sortOrder"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+
+	accounts, err := s.service.LoadAccounts()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	orderMap := make(map[string]int, len(order))
+	for _, o := range order {
+		orderMap[strings.ToLower(strings.TrimSpace(o.Name))] = o.SortOrder
+	}
+
+	for i, a := range accounts {
+		if so, ok := orderMap[strings.ToLower(strings.TrimSpace(a.Name))]; ok {
+			accounts[i].SortOrder = so
+		}
+	}
+
+	if err := s.service.SaveAccounts(accounts); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reordered"})
+}
+
+func (s server) handleArchiveAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPut {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var req struct {
+		Name     string `json:"name"`
+		Archived bool   `json:"archived"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	if err := s.service.SetAccountArchived(name, req.Archived); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	action := "archived"
+	if !req.Archived {
+		action = "restored"
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": action, "name": name})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

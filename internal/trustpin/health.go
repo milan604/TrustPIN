@@ -61,12 +61,30 @@ func AnalyzeAccounts(accounts []Account) []HealthItem {
 			items = append(items, HealthItem{
 				Level:   HealthLevelCritical,
 				Title:   "Invalid secret",
-				Detail:  fmt.Sprintf("%s cannot generate TOTP codes because the secret is not valid base32 or base64.", account.Name),
+				Detail:  fmt.Sprintf("%s cannot generate OTP codes because the secret is not valid base32 or base64.", account.Name),
 				Account: account.Name,
 			})
 		}
 
-		if account.Interval != DefaultInterval || account.Digits != DefaultDigits {
+		if account.Type == TypeHOTP {
+			items = append(items, HealthItem{
+				Level:   HealthLevelInfo,
+				Title:   "Counter-based OTP",
+				Detail:  fmt.Sprintf("%s uses HOTP (counter %d). Counter desync may require re-enrollment.", account.Name, account.Counter),
+				Account: account.Name,
+			})
+		}
+
+		if account.Type == TypeSteam {
+			items = append(items, HealthItem{
+				Level:   HealthLevelInfo,
+				Title:   "Steam Guard",
+				Detail:  fmt.Sprintf("%s uses Steam Guard authentication with 5-character alphanumeric codes.", account.Name),
+				Account: account.Name,
+			})
+		}
+
+		if account.Type == TypeTOTP && (account.Interval != DefaultInterval || account.Digits != DefaultDigits) {
 			level := HealthLevelInfo
 			if account.Interval < 20 || account.Digits < 6 {
 				level = HealthLevelWarning

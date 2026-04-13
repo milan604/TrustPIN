@@ -39,16 +39,18 @@ func ReadQRFromFile(fp string) (string, error) {
 	return string(symbols[0].Payload), nil
 }
 
-func ParseOtpauthURI(uri string) (account string, secret string, interval int, digits int, err error) {
+func ParseOtpauthURI(uri string) (account string, secret string, interval int, digits int, algorithm string, otpType string, counter int64, err error) {
 	u, err := url.Parse(uri)
 	if err != nil {
-		return "", "", 0, 0, err
+		return "", "", 0, 0, "", "", 0, err
 	}
 	if u.Scheme != "otpauth" {
-		return "", "", 0, 0, errors.New("uri is not otpauth scheme")
+		return "", "", 0, 0, "", "", 0, errors.New("uri is not otpauth scheme")
 	}
-	if strings.ToLower(u.Host) != "totp" {
-		return "", "", 0, 0, errors.New("only totp type is supported")
+
+	otpType = strings.ToLower(u.Host)
+	if otpType != "totp" && otpType != "hotp" {
+		return "", "", 0, 0, "", "", 0, errors.New("only totp and hotp types are supported")
 	}
 
 	label := strings.TrimPrefix(u.Path, "/")
@@ -56,11 +58,12 @@ func ParseOtpauthURI(uri string) (account string, secret string, interval int, d
 
 	secret = q.Get("secret")
 	if secret == "" {
-		return "", "", 0, 0, errors.New("secret missing in otpauth uri")
+		return "", "", 0, 0, "", "", 0, errors.New("secret missing in otpauth uri")
 	}
 
 	interval = DefaultInterval
 	digits = DefaultDigits
+	algorithm = AlgorithmSHA1
 
 	if p := q.Get("period"); p != "" {
 		if v, e := strconv.Atoi(p); e == nil && v > 0 {
@@ -71,6 +74,16 @@ func ParseOtpauthURI(uri string) (account string, secret string, interval int, d
 	if d := q.Get("digits"); d != "" {
 		if v, e := strconv.Atoi(d); e == nil && v > 0 {
 			digits = v
+		}
+	}
+
+	if a := q.Get("algorithm"); a != "" {
+		algorithm = NormalizeAlgorithm(a)
+	}
+
+	if c := q.Get("counter"); c != "" {
+		if v, e := strconv.ParseInt(c, 10, 64); e == nil {
+			counter = v
 		}
 	}
 
@@ -85,7 +98,7 @@ func ParseOtpauthURI(uri string) (account string, secret string, interval int, d
 	}
 	account = path.Base(account)
 
-	return account, secret, interval, digits, nil
+	return account, secret, interval, digits, algorithm, otpType, counter, nil
 }
 
 func ParseQRPayload(payload string) ([]Account, error) {
@@ -118,15 +131,18 @@ func ParseQRPayload(payload string) ([]Account, error) {
 		return nil, errors.New("no otpauth URI found in payload")
 	}
 
-	account, secret, interval, digits, err := ParseOtpauthURI(trimmed)
+	account, secret, interval, digits, algorithm, otpType, counter, err := ParseOtpauthURI(trimmed)
 	if err != nil {
 		return nil, err
 	}
 
 	return []Account{{
-		Name:     account,
-		Secret:   secret,
-		Interval: int64(interval),
-		Digits:   digits,
+		Name:      account,
+		Secret:    secret,
+		Interval:  int64(interval),
+		Digits:    digits,
+		Algorithm: algorithm,
+		Type:      otpType,
+		Counter:   counter,
 	}}, nil
 }
